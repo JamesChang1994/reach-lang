@@ -1,0 +1,33 @@
+Verifying knowledge assertions
+Verifying for generic connector
+  Verifying when ALL participants are honest
+Verification failed:
+  when ALL participants are honest
+  of theorem: assert
+  msg: "token supply zero at Token.destroy"
+  at ./mint-fail1.rsh:65:15:application
+
+  // Violation Witness
+
+  const v176 = protect<Object({"amt": UInt, "doEarlyTransfer": Bool, "metadata": Bytes(32), "name": Bytes(32), "supply": UInt, "symbol": Bytes(8), "url": Bytes(96)})>("Alice".interact.getParams());
+  //    ^ could = {amt: 0, doEarlyTransfer: false, metadata: "Bytes!val!0", name: "Bytes!val!1", supply: 1, symbol: "Bytes!val!2", url: "Bytes!val!3" }
+  //      from: ./mint-fail1.rsh:24:104:application
+
+  // Theorem Formalization
+
+  const v254 = 0 == v176.supply;
+  //    ^ would be false
+  assert(v254);
+
+Verification failed:
+  when ALL participants are honest
+  of theorem: assert
+  msg: "token destroyed at application exit"
+  at ./mint-fail1.rsh:78:7:application
+
+  assert(false);
+
+  Verifying when NO participants are honest
+  Verifying when ONLY "Alice" is honest
+  Verifying when ONLY "Bob" is honest
+Checked 62 theorems; 8 failures (and 6 omitted repeats) :'(

@@ -1,0 +1,25 @@
+#!/bin/bash
+# reach-algo-dbg
+# --> list steps
+# reach-algo-dbg step
+# --> show step
+# Some day, make this interactive and imitate
+# https://justine.lol/blinkenlights/index.html
+CONT="reach-devnet-algo"
+STEP="$1"
+if [ "x${STEP}" = "x" ] ; then
+  docker container exec "${CONT}" ls -1 /dbg | sort -t - -k1,1n -k2,2n
+  docker container exec "${CONT}" du -hac /dbg | tail -1
+else
+  TMP=/tmp/algodbg.json
+  docker container cp "${CONT}":/dbg/"${STEP}".json "${TMP}"
+  sed -i -E 's/^( +)([0-9]+):/\1"\2":/g' "${TMP}"
+  line=$(jq .line "${TMP}")
+  ((line = line + 1))
+  # comment out if you need these
+  # cat "${TMP}" | jq .globals
+  # cat "${TMP}" | jq .scratch
+  cat "${TMP}" | jq .txngroup
+  jq -r .disasm "${TMP}" | bat -n --highlight-line "${line}"
+  cat "${TMP}" | jq .stack
+fi

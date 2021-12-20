@@ -1,0 +1,16 @@
+# Editor-generated files
+*~
+*.swp
+*.swo
+
+# Operating-system-generated files
+.DS_Store
+.vscode
+.ethereum
+/todo.html
+build
+/users
+/non-examples/dev
+*.index
+/exp
+.reach

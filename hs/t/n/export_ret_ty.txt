@@ -1,0 +1,8 @@
+reachc: error[RE0088]: These types are mismatched: Bool vs UInt
+
+  <top level>
+
+  
+
+For further explanation of this error, see: https://docs.reach.sh/rsh/errors/#RE0088
+

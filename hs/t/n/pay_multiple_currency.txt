@@ -1,0 +1,19 @@
+warning[RW0000]: Declaring Participants with a tuple is now deprecated. Please use `Participant(name, interface)` or `ParticipantClass(name, interface)`
+
+  ./pay_multiple_currency.rsh:12:7:tuple
+
+  12|       ['A', { amts: Array(UInt, N), shouldPay: Fun([], Bool) }],
+
+For further explanation of this warning, see: https://docs.reach.sh/rsh/errors/#RW0000
+
+reachc: error[RE0042]: Invalid unbound identifier in expression: interact. Did you mean: ["Contract","interval","intervalGt","intervalLt","Interval"]
+
+  ./pay_multiple_currency.rsh:19:25:id ref
+
+  19|         msg: declassify(interact.amts()),
+
+Trace:
+  in "publishE" from (./pay_multiple_currency.rsh:18:27:function exp) at (./pay_multiple_currency.rsh:32:20:application)
+
+For further explanation of this error, see: https://docs.reach.sh/rsh/errors/#RE0042
+

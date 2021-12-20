@@ -1,0 +1,167 @@
+name:                reach
+version:             {{VERSION}}
+github:              "reach-sh/reach-lang"
+license:             Apache-2.0
+author:              "Reach"
+maintainer:          "jay@reach.sh"
+copyright:           "2019 Reach"
+description:         Please visit the GitHub repository <https://github.com/reach-sh/reach-lang#readme>
+
+extra-source-files:
+- rsh/stdlib.rsh
+- sol/stdlib.sol
+- smt2/runtime.smt2
+- app/reach/embed/**/*
+
+dependencies:
+- aeson
+- aeson-pretty
+- async
+- base >= 4.7 && < 5
+- base64
+- bytestring
+- containers
+- cryptonite
+- data-default-class
+- deepseq
+- digest
+- directory
+- dlist
+- edit-distance
+- extra
+- file-embed >= 0.0.9
+- filepath
+- generic-deriving
+- hexstring
+- hspec
+- hspec-smallcheck
+- http-client-tls
+- http-conduit
+- io-capture
+- language-javascript >= 0.7.1.1
+- lattices
+- loop
+- main-tester
+- memory
+- mtl
+- optparse-applicative
+- parsec
+- parsec-numbers
+- pretty-show
+- pretty-simple
+- prettyprinter
+- process
+- regex
+- safe
+- scientific
+- scotty >= 0.12
+- search-algorithms
+- silently
+- simple-smt
+- smallcheck
+- stm
+- system-filepath
+- tasty
+- tasty-ant-xml
+- tasty-discover
+- tasty-golden
+- tasty-hedgehog
+- tasty-hspec
+- tasty-html
+- tasty-hunit
+- tasty-quickcheck
+- tasty-smallcheck
+- temporary
+- text
+- time
+- transformers
+- unix-compat
+- unordered-containers
+- utf8-string
+- vector
+- wai-extra
+- yaml
+- neat-interpolation
+- pretty-terminal
+- generic-data
+- zlib
+
+default-extensions:
+- BangPatterns
+- DeriveAnyClass
+- DeriveDataTypeable
+- DeriveGeneric
+- DerivingStrategies
+- EmptyDataDeriving
+- FlexibleContexts
+- FlexibleInstances
+- GeneralizedNewtypeDeriving
+- LambdaCase
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- NumericUnderscores
+- OverloadedStrings
+- PartialTypeSignatures
+- RankNTypes
+- RecordWildCards
+- ScopedTypeVariables
+- StrictData
+- TemplateHaskell
+- TupleSections
+- TypeApplications
+- TypeSynonymInstances
+
+ghc-options:
+- -Wall
+- -Werror
+- -Wcompat
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wredundant-constraints
+- -Wmissing-export-lists
+# - -Wpartial-fields
+- -Wwarn=unused-top-binds
+# - -Wmonomorphism-restriction # XXX
+- -O2
+- -fwrite-ide-info
+- -hiedir=.hie
+
+library:
+  source-dirs: src
+
+executables:
+  reachc:
+    main:                Main.hs
+    source-dirs:         app/reachc
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - reach
+  reach:
+    main:                Main.hs
+    source-dirs:         app/reach
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -optP-Wno-nonportable-include-path
+    dependencies:
+    - neat-interpolation
+    - parsec
+    - safe
+    - unix
+    - reach
+
+tests:
+  reach-test:
+    main:                Main.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - reach

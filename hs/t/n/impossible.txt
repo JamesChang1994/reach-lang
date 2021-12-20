@@ -1,0 +1,29 @@
+Verifying knowledge assertions
+Verifying for generic connector
+  Verifying when ALL participants are honest
+Verification failed:
+  when ALL participants are honest
+  of theorem: possible
+  at ./impossible.rsh:8:15:application
+  at ./impossible.rsh:5:11:application call to [unknown function] (defined at: ./impossible.rsh:5:15:function exp)
+
+  // Violation Witness
+
+  const v26 = protect<UInt>("A".interact.getX());
+
+  // Theorem Formalization
+
+  const v27 = v26 < 0;
+  possible(v27);
+
+  Verifying when NO participants are honest
+  Verifying when ONLY "A" is honest
+Checked 5 theorems; 2 failures (and 1 omitted repeats) :'(
+warning[RW0004]: There are no publications in the application.
+
+  ./impossible.rsh:3:30:application
+
+  3| export const main = Reach.App(
+
+For further explanation of this warning, see: https://docs.reach.sh/rsh/errors/#RW0004
+

@@ -1,0 +1,26 @@
+Verifying knowledge assertions
+Verifying for generic connector
+  Verifying when ALL participants are honest
+Verification failed:
+  when ALL participants are honest
+  of theorem: assert
+  at ./switch_verification.rsh:14:13:application
+
+  // Violation Witness
+
+  const v34 = "A".interact.amt;
+  //    ^ could = Some(0 )
+  //      from: ./switch_verification.rsh:4:36:property binding
+  const x/44 = <switch case binding for Some(0 )>;
+  //    ^ could = 0
+  //      from: ./switch_verification.rsh:11:3:switch
+
+  // Theorem Formalization
+
+  const v45 = x/44 == 5;
+  //    ^ would be false
+  assert(v45);
+
+  Verifying when NO participants are honest
+  Verifying when ONLY "A" is honest
+Checked 9 theorems; 3 failures (and 2 omitted repeats) :'(

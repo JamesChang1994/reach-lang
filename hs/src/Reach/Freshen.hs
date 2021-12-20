@@ -1,0 +1,269 @@
+module Reach.Freshen
+  ( freshen
+  , freshen_
+  , freshen_top
+  , Freshen
+  )
+where
+
+import Control.Monad.Reader
+import Data.IORef
+import qualified Data.Map.Strict as M
+import Data.Maybe
+import Reach.AST.DLBase
+import Reach.AST.LL
+import Reach.AST.PL
+import Reach.Counter
+
+type App = ReaderT Env IO
+
+type AppT a = a -> App a
+
+data Env = Env
+  { fCounter :: Counter
+  , fRho :: IORef (M.Map DLVar DLVar)
+  }
+
+class Freshen a where
+  fu :: AppT a
+
+class FreshenV a where
+  fu_v :: AppT a
+
+instance FreshenV DLVar where
+  fu_v v@(DLVar at lab t _) = do
+    Env {..} <- ask
+    idx <- liftIO $ incCounter fCounter
+    let v' = DLVar at lab t idx
+    liftIO $ modifyIORef fRho (M.insert v v')
+    return $ v'
+
+instance FreshenV DLLetVar where
+  fu_v = \case
+    DLV_Eff -> return $ DLV_Eff
+    DLV_Let vc v -> DLV_Let vc <$> fu_v v
+
+instance (Freshen a, Freshen b) => Freshen (a, b) where
+  fu (x, y) = (,) <$> fu x <*> fu y
+
+instance (Freshen a, Freshen b) => Freshen (Either a b) where
+  fu = \case
+    Left x -> Left <$> fu x
+    Right x -> Right <$> fu x
+
+instance {-# OVERLAPPABLE #-} (Freshen b) => Freshen (M.Map k b) where
+  fu = traverse fu
+
+instance Freshen a => Freshen (Maybe a) where
+  fu = traverse fu
+
+instance FreshenV a => FreshenV (Maybe a) where
+  fu_v = traverse fu_v
+
+instance Freshen a => Freshen [a] where
+  fu = traverse fu
+
+instance FreshenV a => FreshenV [a] where
+  fu_v = traverse fu_v
+
+instance Freshen DLVar where
+  fu v = do
+    Env {..} <- ask
+    rho <- liftIO $ readIORef fRho
+    return $ fromMaybe v $ M.lookup v rho
+
+instance Freshen DLArg where
+  fu = \case
+    DLA_Var v -> DLA_Var <$> fu v
+    x -> return x
+
+instance Freshen DLLargeArg where
+  fu = \case
+    DLLA_Array t as -> DLLA_Array t <$> fu as
+    DLLA_Tuple as -> DLLA_Tuple <$> fu as
+    DLLA_Obj m -> DLLA_Obj <$> fu m
+    DLLA_Data t v a -> DLLA_Data t v <$> fu a
+    DLLA_Struct kvs -> DLLA_Struct <$> mapM go kvs
+    DLLA_Bytes b -> return $ DLLA_Bytes b
+    where
+      go (k, v) = (,) k <$> fu v
+
+instance Freshen DLTokenNew where
+  fu (DLTokenNew {..}) = DLTokenNew
+    <$> fu dtn_name
+    <*> fu dtn_sym
+    <*> fu dtn_url
+    <*> fu dtn_metadata
+    <*> fu dtn_supply
+    <*> fu dtn_decimals
+
+instance Freshen ClaimType where
+  fu = \case
+    CT_Unknowable x y -> CT_Unknowable x <$> fu y
+    x -> return x
+
+instance Freshen DLWithBill where
+  fu (DLWithBill y z) = DLWithBill <$> fu y <*> fu z
+
+instance Freshen DLExpr where
+  fu = \case
+    DLE_Arg at a -> DLE_Arg at <$> fu a
+    DLE_LArg at a -> DLE_LArg at <$> fu a
+    e@(DLE_Impossible {}) -> return $ e
+    DLE_PrimOp at p as -> DLE_PrimOp at p <$> fu as
+    DLE_ArrayRef at a b -> DLE_ArrayRef at <$> fu a <*> fu b
+    DLE_ArraySet at a b c -> DLE_ArraySet at <$> fu a <*> fu b <*> fu c
+    DLE_ArrayConcat at a b -> DLE_ArrayConcat at <$> fu a <*> fu b
+    DLE_ArrayZip at a b -> DLE_ArrayZip at <$> fu a <*> fu b
+    DLE_TupleRef at x y -> DLE_TupleRef at <$> fu x <*> pure y
+    DLE_ObjectRef at x y -> DLE_ObjectRef at <$> fu x <*> pure y
+    DLE_Interact a b c d e f -> DLE_Interact a b c d e <$> fu f
+    DLE_Digest at as -> DLE_Digest at <$> fu as
+    DLE_Claim a b c d e -> DLE_Claim a b <$> fu c <*> fu d <*> pure e
+    DLE_Transfer at x y z -> DLE_Transfer at <$> fu x <*> fu y <*> fu z
+    DLE_TokenInit at x -> DLE_TokenInit at <$> fu x
+    DLE_CheckPay at x y z -> DLE_CheckPay at x <$> fu y <*> fu z
+    DLE_Wait at x -> DLE_Wait at <$> fu x
+    DLE_PartSet at x y -> DLE_PartSet at x <$> fu y
+    DLE_MapRef at mv fa -> DLE_MapRef at mv <$> fu fa
+    DLE_MapSet at mv fa na -> DLE_MapSet at mv <$> fu fa <*> fu na
+    DLE_Remote at fs av m pamt as wbill -> DLE_Remote at fs <$> fu av <*> pure m <*> fu pamt <*> fu as <*> fu wbill
+    DLE_TokenNew at tns -> DLE_TokenNew at <$> fu tns
+    DLE_TokenBurn at tok amt -> DLE_TokenBurn at <$> fu tok <*> fu amt
+    DLE_TokenDestroy at tok -> DLE_TokenDestroy at <$> fu tok
+    DLE_TimeOrder at tos -> DLE_TimeOrder at <$> fu tos
+    DLE_GetContract at -> return $ DLE_GetContract at
+    DLE_GetAddress at -> return $ DLE_GetAddress at
+    DLE_EmitLog at k a -> DLE_EmitLog at k <$> fu a
+    DLE_setApiDetails s p ts mc f -> return $ DLE_setApiDetails s p ts mc f
+
+instance {-# OVERLAPS #-} Freshen k => Freshen (SwitchCases k) where
+  fu = mapM (\(vn, vnu, k) -> (,,) <$> fu_v vn <*> pure vnu <*> fu k)
+
+instance Freshen DLStmt where
+  fu = \case
+    DL_Nop at -> return $ DL_Nop at
+    DL_Let at v e -> do
+      f' <- fu_v v
+      DL_Let at f' <$> fu e
+    DL_Var at v -> DL_Var at <$> fu_v v
+    DL_Set at v a -> DL_Set at <$> fu v <*> fu a
+    DL_LocalIf at c t f -> DL_LocalIf at <$> fu c <*> fu t <*> fu f
+    DL_LocalSwitch at ov csm ->
+      DL_LocalSwitch at <$> fu ov <*> fu csm
+    DL_Only at who b -> DL_Only at who <$> fu b
+    DL_ArrayMap at ans x a fb -> do
+      x' <- fu x
+      a' <- fu_v a
+      fb' <- fu fb
+      ans' <- fu_v ans
+      return $ DL_ArrayMap at ans' x' a' fb'
+    DL_ArrayReduce at ans x z b a fb -> do
+      ans' <- fu_v ans
+      x' <- fu x
+      z' <- fu z
+      b' <- fu_v b
+      a' <- fu_v a
+      fb' <- fu fb
+      return $ DL_ArrayReduce at ans' x' z' b' a' fb'
+    DL_MapReduce at mri ans x z b a fb -> do
+      ans' <- fu_v ans
+      z' <- fu z
+      b' <- fu_v b
+      a' <- fu_v a
+      fb' <- fu fb
+      return $ DL_MapReduce at mri ans' x z' b' a' fb'
+    DL_LocalDo at t -> DL_LocalDo at <$> fu t
+
+instance Freshen DLPayAmt where
+  fu = \case
+    DLPayAmt net ks ->
+      DLPayAmt <$> fu net <*> mapM (\(amt, ty) -> (,) <$> fu amt <*> fu ty) ks
+
+instance Freshen DLTail where
+  fu = \case
+    DT_Return at -> return $ DT_Return at
+    DT_Com m k -> DT_Com <$> fu m <*> fu k
+
+instance Freshen DLBlock where
+  fu (DLBlock at fs t a) =
+    DLBlock at fs <$> fu t <*> fu a
+
+instance Freshen DLAssignment where
+  fu (DLAssignment m) =
+    DLAssignment <$> (M.fromList <$> (mapM go $ M.toList m))
+    where go (v, a) = (,) <$> fu v <*> fu a
+
+instance FreshenV DLAssignment where
+  fu_v (DLAssignment m) =
+    DLAssignment <$> (M.fromList <$> (mapM go $ M.toList m))
+    where go (v, a) = (,) <$> fu_v v <*> fu a
+
+instance Freshen k => Freshen (DLinExportBlock k) where
+  fu (DLinExportBlock at mvs k) =
+    DLinExportBlock at <$> fu_v mvs <*> fu k
+
+instance Freshen LLConsensus where
+  fu = \case
+    LLC_Com s k -> LLC_Com <$> fu s <*> fu k
+    LLC_If at c t f -> LLC_If at <$> fu c <*> fu t <*> fu f
+    LLC_Switch at v csm -> LLC_Switch at <$> fu v <*> fu csm
+    LLC_FromConsensus x y k -> LLC_FromConsensus x y <$> fu k
+    LLC_While at asn inv cond body k ->
+      LLC_While at <$> fu_v asn <*> fu inv <*> fu cond <*> fu body <*> fu k
+    LLC_Continue at asn -> LLC_Continue at <$> fu asn
+    LLC_ViewIs at v vn deb k ->
+      LLC_ViewIs at v vn <$> fu deb <*> fu k
+
+instance Freshen DLSend where
+  fu (DLSend {..}) =
+    DLSend ds_isClass <$> fu ds_msg <*> fu ds_pay <*> fu ds_when
+
+instance Freshen a => Freshen (DLRecv a) where
+  fu (DLRecv {..}) =
+    DLRecv <$> fu_v dr_from <*> fu_v dr_msg <*> fu_v dr_time <*> fu_v dr_secs <*> fu dr_didSend <*> fu dr_k
+
+instance Freshen LLStep where
+  fu = \case
+    LLS_Com s k -> LLS_Com <$> fu s <*> fu k
+    LLS_Stop at -> return $ LLS_Stop at
+    LLS_ToConsensus at lct send recv mtime ->
+      LLS_ToConsensus at <$> fu lct <*> fu send <*> fu recv <*> fu mtime
+
+instance Freshen FromInfo where
+  fu = \case
+    FI_Continue vs -> FI_Continue <$> (forM vs $ \(v, a) -> (,) v <$> fu a)
+    FI_Halt toks -> FI_Halt <$> mapM fu toks
+
+instance Freshen ([DLArg], DLPayAmt, DLArg, [DLVar], Bool) where
+  fu (a, b, c, d, e) = (,,,,) <$> fu a <*> fu b <*> fu c <*> fu d <*> pure e
+
+instance Freshen ETail where
+  fu = \case
+    ET_Com c k -> ET_Com <$> fu c <*> fu k
+    ET_Stop at -> return $ ET_Stop at
+    ET_If a c t f -> ET_If a <$> fu c <*> fu t <*> fu f
+    ET_Switch a x csm -> ET_Switch a <$> fu x <*> fu csm
+    ET_FromConsensus a w f k -> ET_FromConsensus a w <$> fu f <*> fu k
+    ET_ToConsensus at from prev lct w me msg out timev secsv didSendv mtime cons ->
+      ET_ToConsensus at <$> fu_v from <*> pure prev <*> fu lct <*> pure w <*> fu me <*> fu_v msg <*> fu_v out <*> fu_v timev <*> fu_v secsv <*> fu_v didSendv <*> fu mtime <*> fu cons
+    ET_While at asn cond body k -> ET_While at <$> fu_v asn <*> fu cond <*> fu body <*> fu k
+    ET_Continue at asn -> ET_Continue at <$> fu asn
+
+instance Freshen LLProg where
+  fu (LLProg at opts sps dli dex dvs das devts s) =
+    LLProg at opts sps dli dex dvs das devts <$> fu s
+
+freshen_ :: Freshen a => Counter -> a -> [DLVar] -> IO (a, [DLVar])
+freshen_ fCounter x vs = do
+  fRho <- newIORef mempty
+  flip runReaderT (Env {..}) $ do
+    vs' <- mapM fu_v vs
+    x' <- fu x
+    return $ (x', vs')
+
+freshen :: Freshen a => Counter -> a -> IO a
+freshen fCounter x = fst <$> freshen_ fCounter x []
+
+freshen_top :: (Freshen a, HasCounter a) => a -> IO a
+freshen_top p = freshen (getCounter p) p
